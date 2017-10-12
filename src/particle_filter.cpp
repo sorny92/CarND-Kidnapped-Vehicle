@@ -20,10 +20,25 @@
 using namespace std;
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
-	// TODO: Set the number of particles. Initialize all particles to first position (based on estimates of 
-	//   x, y, theta and their uncertainties from GPS) and all weights to 1. 
-	// Add random Gaussian noise to each particle.
-	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
+	// Random number generator
+	default_random_engine generator;
+	num_particles = 1;
+
+	//Normal distribution generation
+	normal_distribution<double> dist_x(x, std[0]);
+	normal_distribution<double> dist_y(y, std[1]);
+	normal_distribution<double> dist_theta(theta, std[2]);
+
+	for(int i = 0; i < num_particles; ++i){
+		double particle_x, particle_y, particle_theta;
+		Particle particle;
+		particle.x = dist_x(generator);
+		particle.y = dist_y(generator);
+		particle.theta = dist_theta(generator);
+		particle.weight = 1;
+		particles.push_back(particle);
+	}
+	is_initialized = true;
 
 }
 
@@ -32,14 +47,39 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	// NOTE: When adding noise you may find std::normal_distribution and std::default_random_engine useful.
 	//  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
+	default_random_engine generator;
+	//Normal distribution generation
+	for (int i = 0; i < num_particles; ++i){
+		normal_distribution<double> dist_x(particles[i].x, std_pos[0]);
+		normal_distribution<double> dist_y(particles[i].y, std_pos[1]);
+		normal_distribution<double> dist_theta(particles[i].theta, std_pos[2]);
+		particles[i].theta = dist_theta(generator) + yaw_rate*delta_t;
+		particles[i].x = dist_x(generator) + (velocity/yaw_rate)*(sin(particles[i].theta) - sin(dist_theta(generator)));
+		particles[i].y = dist_y(generator) + (velocity/yaw_rate)*(cos(dist_theta(generator)) - cos(particles[i].theta));
+	}
 
 }
 
-void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations) {
+void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, const Map& observations) {
 	// TODO: Find the predicted measurement that is closest to each observed measurement and assign the 
 	//   observed measurement to this particular landmark.
 	// NOTE: this method will NOT be called by the grading code. But you will probably find it useful to 
 	//   implement this method and use it as a helper during the updateWeights phase.
+	vector<Map::single_landmark_s>  landmarks = observations.landmark_list;
+	for(int j = 0; j < predicted.size(); ++j){
+		double min_distance = 1000;
+		int closest_landmark = -1;
+		for(int i = 0; i < landmarks.size(); ++i){
+			double distance = sqrt((predicted[j].x-landmarks[i].x)*(predicted[j].x-landmarks[i].x) + 
+							(predicted[j].y-landmarks[i].y)*(predicted[j].y-landmarks[i].y));
+			if (distance < min_distance) {
+				min_distance = distance;
+				closest_landmark = i;
+			}
+		}
+		predicted[j].id = landmarks[closest_landmark].id;
+		cout << predicted[j].id << endl;
+	}
 
 }
 
@@ -55,6 +95,21 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   and the following is a good resource for the actual equation to implement (look at equation 
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
+	for (int i = 0; i < particles.size(); ++i) {
+		std::vector<LandmarkObs> car_ref_observations;
+		for (int j = 0; j < observations.size(); ++j){
+			LandmarkObs landmark_aux;
+			landmark_aux.x = observations[j].x*cos(particles[i].theta) - observations[j].y*sin(particles[i].theta) + particles[i].x;
+			landmark_aux.y = observations[j].x*sin(particles[i].theta) + observations[j].y*cos(particles[i].theta) + particles[i].y;
+			landmark_aux.id = -1;
+			car_ref_observations.push_back(landmark_aux);
+		}
+		
+		dataAssociation(car_ref_observations, map_landmarks);
+		// for (int j = 0; j < car_ref_observations.size(); ++j){
+		// 	cout << car_ref_observations[j].id << endl;
+		// }
+	}
 }
 
 void ParticleFilter::resample() {
