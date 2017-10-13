@@ -23,7 +23,8 @@ using namespace std;
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
     // Random number generator
     default_random_engine generator;
-    num_particles = 1;
+    num_particles = 500;
+    weights.resize(num_particles);
 
     //Normal distribution generation
     normal_distribution<double> dist_x(x, std[0]);
@@ -79,7 +80,7 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs>& predicted, const 
             }
         }
         predicted[j].id = landmarks[closest_landmark].id;
-        cout << predicted[j].id << endl;
+        //cout << predicted[j].id << endl;
     }
 
 }
@@ -102,8 +103,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
         map_map_landmarks.insert( std::pair<int,Map::single_landmark_s>(landmark.id, landmark) );
     }
 
-    for (int i = 0; i < particles.size(); ++i) {
-        particles[i].weight = 0;
+    double total_weight = 0;
+    for (int i = 0; i < particles.size(); i++) {
         std::vector<LandmarkObs> car_ref_observations;
         for (int j = 0; j < observations.size(); ++j){
             LandmarkObs landmark_aux;
@@ -117,7 +118,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
         for (int j = 0; j < car_ref_observations.size(); ++j){
             // Get the map_landmark of the associated observation
             LandmarkObs observation = car_ref_observations[j];
-            cout << "id " << observation.id << endl;
+            //cout << "id " << observation.id << endl;
             Map::single_landmark_s landmark = map_landmarks.landmark_list[observation.id-1];
 
             double gauss_norm = (1/(2*M_PI*std_landmark[0]*std_landmark[1]));
@@ -127,6 +128,12 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
                                                 (2*std_landmark[1]*std_landmark[1])));
             particles[i].weight *= gauss_norm*exp(-exponent);
         }
+        //cout << particles[i].weight << endl;
+        total_weight += particles[i].weight;
+    }
+    for (int i = 0; i < particles.size(); ++i) {
+        particles[i].weight /= total_weight;
+        weights[i] = particles[i].weight;
     }
 }
 
@@ -134,7 +141,28 @@ void ParticleFilter::resample() {
     // TODO: Resample particles with replacement with probability proportional to their weight. 
     // NOTE: You may find std::discrete_distribution helpful here.
     //   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
+    default_random_engine generator;
+    double max_weight = *max_element(weights.begin(), weights.end());
+    vector<Particle> next_particles;
+    double beta = 0;
 
+    discrete_distribution<int> index_roulette(weights.begin(), weights.end());
+
+    uniform_real_distribution<double> weight_d(0, 2*max_weight);
+    for (int i = 0; i < num_particles; ++i) {
+        int index = index_roulette(generator);
+        beta += weight_d(generator);
+
+        while (beta > weights[index]){
+            beta -= weights[index];
+            if(index < num_particles-1)
+                index++;
+            else
+                index = 0;
+        }
+        next_particles.push_back(particles[index]);
+    }    
+    particles = next_particles;
 }
 
 Particle ParticleFilter::SetAssociations(Particle particle, std::vector<int> associations, std::vector<double> sense_x, std::vector<double> sense_y)
