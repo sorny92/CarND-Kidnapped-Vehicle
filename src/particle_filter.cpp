@@ -23,7 +23,7 @@ using namespace std;
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
     // Random number generator
     default_random_engine generator;
-    num_particles = 1000;
+    num_particles = 100;
     weights.resize(num_particles);
 
     //Normal distribution generation
@@ -52,6 +52,9 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
     default_random_engine generator;
     //Normal distribution generation
     for (auto& particle:  particles){
+        if (fabs(yaw_rate) < 0.001 ){
+            yaw_rate = 0.001;
+        }
         const double theta = particle.theta + (yaw_rate*delta_t);
         const double x = particle.x + (velocity/yaw_rate)*(sin(theta) - sin(particle.theta));
         const double y = particle.y + (velocity/yaw_rate)*(cos(particle.theta) - cos(theta));
@@ -171,27 +174,15 @@ void ParticleFilter::resample() {
     // NOTE: You may find std::discrete_distribution helpful here.
     //   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
     default_random_engine generator;
-    double max_weight = *max_element(weights.begin(), weights.end());
     vector<Particle> next_particles;
-    double beta = 0;
-
     discrete_distribution<int> index_roulette(weights.begin(), weights.end());
 
-    uniform_real_distribution<double> weight_d(0, 2*max_weight);
     for (int i = 0; i < num_particles; ++i) {
         int index = index_roulette(generator);
-        beta += weight_d(generator);
-
-        while (beta > weights[index]){
-            beta -= weights[index];
-            if(index < num_particles-1)
-                index++;
-            else
-                index = 0;
-        }
         next_particles.push_back(particles[index]);
     }    
     particles = next_particles;
+    cout << particles[0].x << endl;
 }
 
 Particle ParticleFilter::SetAssociations(Particle particle, std::vector<int> associations, std::vector<double> sense_x, std::vector<double> sense_y)
