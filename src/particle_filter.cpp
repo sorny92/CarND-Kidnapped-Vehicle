@@ -51,13 +51,18 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
     //  http://www.cplusplus.com/reference/random/default_random_engine/
     default_random_engine generator;
     //Normal distribution generation
-    for (int i = 0; i < num_particles; ++i){
-        normal_distribution<double> dist_x(particles[i].x, std_pos[0]);
-        normal_distribution<double> dist_y(particles[i].y, std_pos[1]);
-        normal_distribution<double> dist_theta(particles[i].theta, std_pos[2]);
-        particles[i].theta = dist_theta(generator) + yaw_rate*delta_t;
-        particles[i].x = dist_x(generator) + (velocity/yaw_rate)*(sin(particles[i].theta) - sin(dist_theta(generator)));
-        particles[i].y = dist_y(generator) + (velocity/yaw_rate)*(cos(dist_theta(generator)) - cos(particles[i].theta));
+    for (auto& particle:  particles){
+        const double theta = particle.theta + yaw_rate*delta_t;
+        const double x = particle.x + (velocity/yaw_rate)*(sin(particle.theta + yaw_rate*delta_t) - sin(particle.theta));
+        const double y = particle.y + (velocity/yaw_rate)*(cos(particle.theta) - cos(particle.theta + yaw_rate*delta_t));
+
+        normal_distribution<double> dist_x(x, std_pos[0]);
+        normal_distribution<double> dist_y(y, std_pos[1]);
+        normal_distribution<double> dist_theta(theta, std_pos[2]);
+
+        particle.x = dist_x(generator);
+        particle.y = dist_y(generator);
+        particle.theta = dist_theta(generator);
     }
 
 }
