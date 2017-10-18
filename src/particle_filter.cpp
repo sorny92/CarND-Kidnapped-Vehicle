@@ -148,7 +148,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
         dataAssociation(landmarks_in_range, car_ref_observations);
 
-
+        particles[i].weight = 1;
         for (auto& observation : car_ref_observations){
             //cout << "id " << observation.id << endl;
             LandmarkObs landmark = landmarks_in_range[observation.id];
@@ -164,7 +164,6 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
         total_weight += particles[i].weight;
     }
     for (int i = 0; i < particles.size(); ++i) {
-        particles[i].weight /= total_weight;
         weights[i] = particles[i].weight;
     }
 }
